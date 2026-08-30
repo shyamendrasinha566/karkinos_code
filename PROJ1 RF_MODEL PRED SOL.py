@@ -7,29 +7,19 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors
 from rdkit.ML.Descriptors import MoleculeDescriptors
 
-from sklearn.model_selection import (
-    train_test_split,
-    KFold,
-    cross_val_score,
-    RandomizedSearchCV
-)
+from sklearn.model_selection import (train_test_split,KFold,cross_val_score,RandomizedSearchCV)
 
 from sklearn.feature_selection import VarianceThreshold
 
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 
-from sklearn.metrics import (
-    r2_score,
-    mean_absolute_error,
-    mean_squared_error
-)
+from sklearn.metrics import (r2_score,mean_absolute_error,mean_squared_error)
 
 import xgboost as xgb
 
 
 # LOAD DATA
-
 
 df = pd.read_csv("approved_drugs_clean.csv")
 
@@ -379,17 +369,11 @@ rf_search = RandomizedSearchCV(
 rf_search.fit(X_train_final,y_train)
 
 
-
 # BEST PARAMETERS
-
 
 print(rf_search.best_params_)
 
-
-print(
-    "\nBest CV R2:",
-    round(rf_search.best_score_, 4)
-)
+print(Best CV R2:",round(rf_search.best_score_, 4))
 
 
 #  OPTIMIZED RANDOM FOREST
@@ -397,29 +381,16 @@ print(
 best_rf = rf_search.best_estimator_
 
 
-y_pred_best_rf = best_rf.predict(
-    X_test_final
-)
+y_pred_best_rf = best_rf.predict( X_test_final)
 
 
-r2_best_rf = r2_score(
-    y_test,
-    y_pred_best_rf
-)
+r2_best_rf = r2_score(y_test,y_pred_best_rf)
 
-mse_best_rf = mean_squared_error(
-    y_test,
-    y_pred_best_rf
-)
+mse_best_rf = mean_squared_error(y_test,y_pred_best_rf)
 
-rmse_best_rf = np.sqrt(
-    mse_best_rf
-)
+rmse_best_rf = np.sqrt( mse_best_rf)
 
-mae_best_rf = mean_absolute_error(
-    y_test,
-    y_pred_best_rf
-)
+mae_best_rf = mean_absolute_error(y_test,y_pred_best_rf)
 
 
 print("OPTIMIZED RANDOM FOREST - TEST SET")
@@ -458,10 +429,6 @@ print(f"MAE  : {mae:.4f}")
 print(f"MSE  : {mse:.4f}")
 print(f"RMSE : {rmse:.4f}")
 
-
-
-
-
 # SAVE THE MODEL 
 
 
@@ -489,8 +456,6 @@ selected_features = model_package["selected_features"]
 descriptor_names = model_package["descriptor_names"]
 
 
-
-
 # NEW DRUG MOLECULE 
 
 new_drug = "CC1=C(C=C(C=C1)NC(=O)C2=CC=C(C=C2)CN3CCN(CC3)C)NC4=NC=CC(=N4)C5=CC=CC=C5"
@@ -504,15 +469,11 @@ calculator = MoleculeDescriptors.MolecularDescriptorCalculator(descriptor_names)
 descriptors = calculator.CalcDescriptors(mol)
 
 
-new_drug_df = pd.DataFrame(
-    [descriptors],
-    columns=descriptor_names
-)
+new_drug_df = pd.DataFrame([descriptors],columns=descriptor_names)
 
 New_drug_final = new_drug_df[selected_features]
 
 predicted = best_rf.predict(New_drug_final)
-
 
 
 print("SMILES:", new_drug)
