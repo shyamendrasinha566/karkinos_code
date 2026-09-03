@@ -92,10 +92,8 @@ for smi in file["SMILES"]:
 
     if mol is not None:
 
-        # Generate fingerprint for CURRENT drug
         fp = FP_generator.GetFingerprint(mol)
 
-        # Calculate similarity with vepdegestrant
         similarity = TanimotoSimilarity(fp_new, fp)
 
         similarities.append(similarity)
