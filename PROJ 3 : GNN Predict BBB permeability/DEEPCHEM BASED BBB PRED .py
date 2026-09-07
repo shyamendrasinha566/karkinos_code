@@ -1,6 +1,4 @@
 
-import os
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score,mean_absolute_error,mean_squared_error
@@ -12,30 +10,6 @@ import deepchem as dc
 from rdkit import Chem
 
 import matplotlib.pyplot as plt
-
-'''''
-import sys
-
-print("Python executable:")
-print(sys.executable)
-
-print("Python version:")
-print(sys.version)
-
-import tensorflow as tf
-print("TensorFlow version:")
-print(tf.__version__)
-
-import keras
-print("Keras version:")
-print(keras.__version__)
-
-import deepchem as dc
-print("DeepChem version:")
-print(dc.__version__)
-
-'''
-
 
 
 # LOAD THE FILE 
@@ -52,15 +26,14 @@ df = df.dropna(subset=["SMILES", "logBB"]).reset_index(drop=True)
 print(df["logBB"].describe())
 
 
-
 smiles = df["SMILES"].values
 
 y = df["logBB"].astype(float).values
 
+
 # Therefore reshape LogBB to one task.
 
 y = y.reshape(-1, 1)
-
 
 
 # MOLECULAR GRAPH FEATURIZATION
@@ -83,8 +56,6 @@ for i, graph in enumerate(X_graph):
         valid_y.append(y[i])
         valid_smiles_final.append(smiles[i])
 
-
-
 X_graph = np.array(valid_graphs, dtype=object)
 y = np.array(valid_y)
 smiles = np.array(valid_smiles_final)
@@ -104,8 +75,10 @@ y_test = y[test_indices]
 smiles_train = smiles[train_indices]
 smiles_test = smiles[test_indices]
 
-print("\nTRAINING DATA:", len(X_train))
+
+print("TRAINING DATA:", len(X_train))
 print("TEST DATA:", len(X_test))
+
 
 # DEEPCHEM DATASETS 
 
@@ -139,10 +112,7 @@ for epoch in range(50):
 
     loss_history.append(loss)
 
-    print(
-        f"Epoch {epoch + 1:03d} | "
-        f"Loss = {loss:.5f}"
-    )
+print(f"Epoch {epoch + 1:03d} | "f"Loss = {loss:.5f}")
 
 
 # PREDICT
@@ -154,55 +124,29 @@ y_pred = y_pred.reshape(-1)
 y_test_flat = y_test.reshape(-1)
 
 
-r2 = r2_score(
-    y_test_flat,
-    y_pred
-)
-
-mae = mean_absolute_error(
-    y_test_flat,
-    y_pred
-)
-
-mse = mean_squared_error(
-    y_test_flat,
-    y_pred
-)
-
+r2 = r2_score(y_test_flat,y_pred)
+mae = mean_absolute_error(y_test_flat,y_pred)
+mse = mean_squared_error(y_test_flat, y_pred)
 rmse = np.sqrt(mse)
 
 
-# 17. GRAPH 3 — RESIDUAL PLOT
-# ============================================================
+print(f"R² : {r2:.4f}")
+print(f"MAE : {mae:.4f}")
+print(f"MSE : {mse:.4f}")
+print(f"RMSE: {rmse:.4f}")
 
-residuals = (
-    y_test_flat - y_pred
-)
 
+# RESIDUAL PLOT
+
+residuals = (y_test_flat - y_pred)
 plt.figure(figsize=(8, 5))
-
-plt.scatter(
-    y_pred,
-    residuals,
-    alpha=0.7
-)
-
-plt.axhline(
-    0,
-    linestyle="--"
-)
-
+plt.scatter(y_pred,residuals,alpha=0.7)
+plt.axhline(0,linestyle="--")
 plt.xlabel("Predicted LogBB")
-
 plt.ylabel("Residual")
-
-plt.title(
-    "DeepChem LogBB Residual Plot"
-)
+plt.title("DeepChem LogBB Residual Plot")
 
 plt.grid(True)
-
 plt.tight_layout()
-
 plt.show()
 
