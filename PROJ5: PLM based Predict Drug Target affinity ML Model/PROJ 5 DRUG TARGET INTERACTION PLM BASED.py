@@ -2,18 +2,6 @@
 import numpy as np
 import pandas as pd
 
-''''
-df = pd.read_csv("bindingdb_highconf_pKd_clean.csv")
-
-target_sequence = "MAQALPWLLLWMGAGVLPAHGTQHGIRLPLRSGLGGAPLGLRLPRETDEEPEEPGRRGSFVEMVDNLRGKSGQGYYVEMTVGSPPQTLNILVDTGSSNFAVGAAPHPFLHRYYQRQLSSTYRDLRKGVYVPYTQGKWEGELGTDLVSIPHGPNVTVRANIAAITESDKFFINGSNWEGILGLAYAEIARPDDSLEPFFDSLVKQTHVPNLFSLQLCGAGFPLNQSEVLASVGGSMIIGGIDHSLYTGSLWYTPIRREWYYEVIIVRVEINGQDLKMDCKEYNYDKSIVDSGTTNLRLPKKVFEAAVKSIKAASSTEKFPDGFWLGEQLVCWQAGTTPWNIFPVISLYLMGEVTNQSFRITILPQQYLRPVEDVATSQDDCYKFAISQSSTGTVMGAVIMEGFYVVFDRARKRIGFAVSACHVHDEFRTAAVEGPFVTLDMEDCGYNIPQTDESTLMTIAYVMAAICALFMLPLCLMVCQWRCLRCLRQQHDDFADDISLLK"
-
-selected_rows = df[df["target_sequence"].astype(str).str.strip() == target_sequence]
-
-print("Number of rows:", len(selected_rows))
-
-selected_rows.to_csv("Alzheimer drug target interact.csv",index=False)
-
-'''''
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 from rdkit.Chem import rdFingerprintGenerator
@@ -34,7 +22,6 @@ df = pd.read_csv("Alzheimer drug target interact.csv")
 df = df.rename(columns={"compound_iso_smiles" : "SMILES"})
 
 # CHECK VALIDITY OF SMILES 
-
 
 valid_smiles = []
 invalid_smiles = 0
@@ -58,6 +45,7 @@ print("Number of invalid SMILES:", invalid_smiles)
 df = df[valid_smiles].copy()
 
 df = df.dropna().reset_index(drop=True)
+
 
 # MORGAN FINGERPRINT
 
@@ -402,7 +390,6 @@ plt.plot(
     [min_value, max_value],
     linestyle="--"
 )
-
 
 plt.xlabel("ACTUAL AFFINITY")
 plt.ylabel("PREDICTED AFFINITY")
