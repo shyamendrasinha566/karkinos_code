@@ -1,5 +1,4 @@
 
-import matplotlib.pylab as plt
 import scanpy as sc
 import numpy as np
 import pandas as pd
@@ -19,8 +18,8 @@ print(andata.var_names.is_unique)
 print("NUMBER OF CELLS :", andata.n_obs)
 print("NUMBER OF GENES:", andata.n_vars)
 
-#print(andata.obs.head())
-#print(andata.var.head())
+print(andata.obs.head()) 
+print(andata.var.head())
 
 print(andata.obs_names[:5])
 
@@ -32,7 +31,7 @@ print("Number of mitochondrial genes:", mt_genes.sum())
 
 andata.var["mt"] = mt_genes
 
-# QUALITY CONTROL 
+# QUALITY CONTROL (QC)
 
 sc.pp.calculate_qc_metrics(andata, qc_vars=["mt"], inplace=True)
 
@@ -77,7 +76,7 @@ sc.pp.log1p(andata)
 
 sc.pp.highly_variable_genes(andata,n_top_genes=3000,flavor="seurat")
 
-#sc.pl.highly_variable_genes(andata)
+sc.pl.highly_variable_genes(andata)
 
 # SCALING 
 
@@ -91,7 +90,7 @@ sc.pl.pca(andata)
 
 # PCA VARINACE PLOT 
 
-#sc.pl.pca_variance_ratio(andata, log=True)
+sc.pl.pca_variance_ratio(andata, log=True)
 
 # NEAREST NEIGHBOUR 
 
@@ -107,11 +106,10 @@ sc.pl.umap(andata)
 
 sc.tl.leiden(andata, resolution=0.5)
 
-#sc.pl.umap(
-#   andata,
-#    color=["leiden"]
-#)
-
+sc.pl.umap(
+   andata,
+   color=["leiden"]
+)
 
 # MARKER GENES 
 
@@ -157,7 +155,6 @@ sc.pl.heatmap(
 )
 
 # SAVE PROCESSED DATA 
-
 andata.write("single_cell_processed.h5ad")
 
 print("Final number of cells:", andata.n_obs)
