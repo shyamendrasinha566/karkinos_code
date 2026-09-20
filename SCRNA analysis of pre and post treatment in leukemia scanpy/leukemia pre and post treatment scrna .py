@@ -8,7 +8,6 @@ from scipy.io import mmread
 
 # PRE-TREATMENT
 
-
 pre_path = r"C:\Users\Shyamendra Sinha\Desktop\R programming files\scRNA FILES\GSE306339_RAW\PRE TREATMENT"
 
 pre_matrix = mmread(
@@ -26,7 +25,6 @@ pre_features = pd.read_csv(
     sep="\t",
     header=None
 )
-
 
 # Create AnnData
 
@@ -107,7 +105,6 @@ adata_post.obs["sample"] = "AML-A15"
 
 adata_pre.var["mt"] = adata_pre.var_names.str.startswith("MT-")
 
-
 print("NUMBER OF MITOCHONDRIAL GENES:", adata_pre.var["mt"].sum())
 
 # QUALITY CONTROL 
@@ -123,14 +120,14 @@ print(adata_pre.obs[
     ]
 )
 
-# # Violoin Plot 
+# Violoin Plot 
 
-# sc.pl.violin(
-#     adata_pre,
-#     ["total_counts","n_genes_by_counts","pct_counts_mt"],
-#     jitter = 0.4,
-#     multi_panel = True,
-# )
+sc.pl.violin(
+    adata_pre,
+    ["total_counts","n_genes_by_counts","pct_counts_mt"],
+    jitter = 0.4,
+    multi_panel = True,
+)
 
 # FILTER DATA 
 
