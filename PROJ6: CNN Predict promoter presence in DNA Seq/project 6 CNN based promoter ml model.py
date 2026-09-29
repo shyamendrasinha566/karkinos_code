@@ -237,6 +237,42 @@ print(f"recall_score: {RECALL:.4f}")
 
 print(cm)
 
+
+ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=[
+        "Non-promoter",
+        "Promoter"
+    ]
+).plot()
+
+plt.title("CNN Promoter Classification")
+plt.show()
+
+# TRAINING / VALIDATION ACCURACY
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    history.history["accuracy"],
+    label="Training Accuracy"
+)
+
+plt.plot(
+    history.history["val_accuracy"],
+    label="Validation Accuracy"
+)
+
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+
+plt.title("CNN Accuracy")
+
+plt.legend()
+
+plt.show()
+
+
 # SAVE THE MODEL 
 
 model.save("promoter_CNN_model.keras")
