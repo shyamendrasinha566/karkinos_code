@@ -11,19 +11,15 @@ from sklearn.metrics import accuracy_score,f1_score,recall_score,classification_
 
 import tensorflow as tf
 
-print(tf.__version__)
-
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense, Dropout
 
 print("TensorFlow Keras import successful")
 
-
 df = pd.read_csv("promoter_binary_classification_dataset.csv")
 
 print(df.shape)
 
-print("\nClass distribution:")
 print(df["label"].value_counts())
 
 
@@ -66,13 +62,7 @@ print("Testing data:", X_test.shape)
 
 # VALIDATION SPLIT 
 
-X_train, X_val, y_train, y_val = train_test_split(
-    X_train,
-    y_train,
-    test_size=0.20,
-    random_state=42,
-    stratify=y_train
-)
+X_train, X_val, y_train, y_val = train_test_split(X_train,y_train,test_size=0.20,random_state=42,stratify=y_train)
 
 print("Final training:", X_train.shape)
 print("Validation:", X_val.shape)
@@ -114,14 +104,15 @@ model = tf.keras.Sequential([
         pool_size = 2 
     ), 
  
-    # Third convolution 
+# Third convolution 
+    
     tf.keras.layers.Conv1D( 
         filters=32, 
         kernel_size=5, 
         activation="relu" 
     ), 
  
-   # Dropout 
+# Dropout 
  
     tf.keras.layers.Dropout(0.3), 
  
@@ -143,7 +134,6 @@ tf.keras.layers.GlobalMaxPooling1D(),
         activation="sigmoid" 
     ) 
 ]) 
- 
  
 # COMPILE MODEL  
  
@@ -173,6 +163,7 @@ early_stopping = tf.keras.callbacks.EarlyStopping(
 
     restore_best_weights=True
 )
+
 
 # TRAIN MODEL 
 
@@ -216,7 +207,7 @@ y_probability = model.predict(
     X_test
 ).flatten()
 
-# Probability > 0.5 = promoter
+
 y_prediction = (
     y_probability >= 0.5
 ).astype(int)
@@ -227,13 +218,9 @@ print(classification_report(y_test,y_prediction,target_names=["Non-promoter", "P
 
 # ROC-AUC 
 
-roc_auc = roc_auc_score(
-    y_test,
-    y_prediction
-)
+roc_auc = roc_auc_score(y_test,y_prediction)
 
 print("ROC-AUC SCORE :", roc_auc)
-
 
 # CONFUSION MATRIX, RECALL AND F1_SCORE
 
@@ -249,3 +236,9 @@ print(f"f1_score: {F1_score_result:.4f}")
 print(f"recall_score: {RECALL:.4f}")
 
 print(cm)
+
+# SAVE THE MODEL 
+
+model.save("promoter_CNN_model.keras")
+
+print("Model saved")
