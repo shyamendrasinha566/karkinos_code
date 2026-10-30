@@ -1,1 +1,251 @@
 
+
+# DESEQ2 ANALYSIS OF COLORECTAL TUMOR AND NORMAL CELLS 
+
+
+library(DESeq2)
+library(pheatmap)
+library(ggplot2)
+
+# LOAD THE FILES 
+
+files <- c(
+
+tumor_file1 <- "C:/Users/Shyamendra Sinha/Downloads/GSM5857801_15-130_B7_G821_htseq.out.txt.gz",
+  
+normal_file1 <- "C:/Users/Shyamendra Sinha/Downloads/GSM5857800_15-130_B0_G821_htseq.out.txt.gz",
+
+tumor_file2 <- "C:/Users/Shyamendra Sinha/Downloads/GSM5857798_15-018_L0_G821_htseq.out.txt.gz",
+  
+normal_file2 <-"C:/Users/Shyamendra Sinha/Downloads/GSM5857799_15-018_L7_G821_htseq.out.txt.gz",
+  
+tumor_file3 <- "C:/Users/Shyamendra Sinha/Downloads/GSM5857802_15-160_E0_G821_htseq.out.txt.gz",
+  
+normal_file3 <- "C:/Users/Shyamendra Sinha/Downloads/GSM5857803_15-160_E7_G821_htseq.out.txt.gz"
+
+)
+
+# TO CHECK ALL THE FILES EXISTS
+
+file.exists(files)
+
+
+# READ FILES 
+
+count_list <- lapply(files, function(file){
+  
+  data <- read.table(
+    file,
+    header = FALSE,
+    sep ="\t",
+    stringsAsFactors = FALSE
+  )
+    
+    data <- data[,1:2]
+    
+    colnames(data) <- c("gene_id", "count")
+    
+    data
+})
+
+# create count matrix 
+
+count_matrix <- Reduce(function(x, y) {
+  merge(x, y, by = "gene_id", all = TRUE)
+}, count_list)
+
+# Check result
+
+head(count_matrix)
+
+# REMOVE HTSEQ SUMMARY ROWS 
+
+count_matrix <- count_matrix[
+  !grepl("^__", count_matrix$gene_id),
+]
+
+# final count matrix 
+
+rownames(count_matrix) <- count_matrix$gene_id
+
+count_matrix <- count_matrix[, -1, drop = FALSE]
+
+# replace missing values with zero 
+
+count_matrix[is.na(count_matrix)] <- 0
+
+
+head(count_matrix)
+
+summary(count_matrix)
+
+
+# CREATE SAMPLE METADATA 
+
+sample_info <- data.frame(
+  
+  patient = factor(c(
+    "15.130",
+    "15.130",
+    "15.018",
+    "15.018",
+    "15.160",
+    "15.160"
+  )),
+  
+  condition = factor(
+    c(
+      "Tumor",
+      "Normal",
+      "Normal",
+      "Tumor",
+      "Normal",
+      "Tumor"
+    ),
+    levels = c("Normal", "Tumor")
+  ),
+  
+  row.names = names(files)
+  
+)
+
+sample_info
+
+table(sample_info$condition)
+
+sample_info$condition <- factor(
+  sample_info$condition,
+  level = c("Normal", "Tumor")
+)
+
+
+sample_info
+table(sample_info$condition)
+
+
+# FILTER LOW QUALITY GENES 
+
+keep <- rowSums(count_matrix >= 10) >= 2
+
+count_filter <- count_matrix[keep, , drop = FALSE]
+
+dim(count_filter)
+
+
+# CREATE DESEQ2 OBJECT 
+
+dds <- DESeqDataSetFromMatrix(
+  countData = count_filter,
+  colData = sample_info,
+  design = ~ patient + condition
+)
+
+
+dds <- DESeq(dds)
+
+
+res <- results(
+  dds,
+  contrast = c("condition", "Tumor", "Normal"),
+  alpha = 0.05
+)
+
+res
+
+summary(res)
+
+res_df <- as.data.frame(res)
+
+# STATISTICALLY SIGNIFICANT GENES 
+
+sig_genes <- res_df[
+  !is.na(res_df$padj) &
+    res_df$padj < 0.05,
+]
+
+sig_genes <- sig_genes[
+  order(sig_genes$padj),
+  ,
+  drop = FALSE
+]
+
+head(sig_genes)
+
+# UPREGULATED GENES 
+
+up_genes <- sig_genes[
+  sig_genes$log2FoldChange > 1,
+  ,
+  drop = FALSE
+]
+
+# Down Regulated genes
+
+down_genes <- sig_genes[
+  sig_genes$log2FoldChange < -1,
+  ,
+  drop = FALSE
+]
+
+# check 
+
+nrow(down_genes)
+nrow(sig_genes)
+nrow(up_genes)
+
+# VIEW TOP GENES 
+
+top_genes <- sig_genes[
+  order(sig_genes$padj),
+]
+
+
+head(top_genes,20)
+
+# VOLCANO PLOT 
+
+library(ggplot2)
+
+res_df$significance <- "Not significant"
+
+res_df$significance[
+  !is.na(res_df$padj) &
+    res_df$padj < 0.05 &
+    res_df$log2FoldChange > 1
+] <- "Upregulated"
+
+res_df$significance[
+  !is.na(res_df$padj) &
+    res_df$padj < 0.05 &
+    res_df$log2FoldChange < -1
+] <- "Downregulated"
+
+
+# Volcano plot
+
+ggplot(
+  res_df,
+  aes(
+    x = log2FoldChange,
+    y = -log10(padj),
+    color = significance
+  )
+) +
+  geom_point(
+    alpha = 0.7,
+    size = 1.5
+  ) +
+  scale_color_manual(
+    values = c(
+      "Upregulated" = "red",
+      "Downregulated" = "blue",
+      "Not significant" = "grey"
+    )
+  ) +
+  theme_minimal() +
+  labs(
+    title = "Volcano Plot: Tumor vs Normal",
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted P-value",
+    color = "Gene expression"
+  )
