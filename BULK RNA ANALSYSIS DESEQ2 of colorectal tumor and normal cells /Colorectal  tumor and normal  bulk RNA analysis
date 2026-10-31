@@ -249,3 +249,218 @@ ggplot(
     y = "-Log10 Adjusted P-value",
     color = "Gene expression"
   )
+
+
+# HEATMAP PLOT 
+
+library(pheatmap)
+
+res_df <- res_df[
+  !is.na(res_df$pvalue) &
+    !is.na(res_df$log2FoldChange),
+]
+
+res_reordered <- res_df[
+  order(res_df$pvalue),
+]
+
+# select top 30 genes 
+
+top_genes <- head(
+  res_reordered$gene_id,
+  30
+)
+
+# extract normalized counts 
+
+normalized_counts <- counts(
+  dds,
+  normalized = TRUE
+)
+
+top_expression <- normalized_counts[
+  top_genes,
+  ,
+  drop = FALSE
+]
+
+
+# Log transformation
+
+log_counts <- log2(
+  top_expression + 1
+)
+
+# Scale expression gene-wise
+
+scaled_counts <- t(
+  scale(t(log_counts))
+)
+
+
+# Create annotation
+
+annotation_col <- as.data.frame(
+  colData(dds)[, "condition", drop = FALSE]
+)
+
+# Plot Heatmap
+
+pheatmap(
+  scaled_counts,
+  annotation_col = annotation_col,
+  cluster_rows = nrow(scaled_counts) >= 2,
+  cluster_cols = ncol(scaled_counts) >= 2,
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  main = "Top Differentially Expressed Genes"
+)
+
+
+
+sig_genes <- rownames(res_df)[
+  res_df$padj < 0.05 &
+    abs(res_df$log2FoldChange) > 1
+]
+
+
+head(sig_genes)
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+
+
+rig_genes <- rownames(res)[
+  !is.na(res$padj)&(res$pad)<0.05
+]
+
+gene_conversion <- bitr(
+  sig_genes,
+  fromType = "ENSEMBL",
+  toType = "ENTREZID",
+  OrgDb = org.Hs.eg.db
+)
+
+gene_ids <- unique(gene_conversion$ENTREZID)
+
+# REMOVE DUPLICATED GENE IDS
+
+gene_conversion<-gene_conversion[
+  !duplicated(gene_conversion$ENTREZID),
+]
+
+# RUN GEO ENRICHMENT 
+
+ego <- enrichGO(
+  gene = gene_ids,
+  OrgDb = org.Hs.eg.db,
+  keyType = "ENTREZID",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05,
+  qvalueCutoff = 0.05
+)
+
+head(as.data.frame(ego))
+
+dotplot(
+  ego,
+  showCategory = 20
+)
+
+ego <- enrichGO(
+  gene = gene_ids,
+  OrgDb = org.Hs.eg.db,
+  keyType = "ENTREZID",
+  ont = "MF",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05,
+  qvalueCutoff = 0.05
+)
+
+head(as.data.frame(ego))
+
+dotplot(
+  ego,
+  showCategory = 20
+)
+
+# KEGG PATHWAY ENRICHMENT 
+
+kegg <- enrichKEGG(
+  gene = gene_ids,
+  organism = "hsa",
+  pvalueCutoff = 0.05
+)
+
+  
+dotplot(
+  kegg,
+  showCategory = 20
+)
+  
+  
+# GENE SET ENRICHMENT ANALYSIS 
+
+res_gsea <- as.data.frame(res)
+
+res_gsea <- res_gsea[
+  !is.na(res_gsea$stat),
+]
+  
+gene_map <- bitr(
+  rownames(res_gsea),
+  fromType = "ENSEMBL",
+  toType = "ENTREZID",
+  OrgDb = org.Hs.eg.db
+)
+
+# Match statistics with gene IDs
+
+res_gsea$ENSEMBL <- rownames(res_gsea)
+  
+  
+# merge 
+
+gsea_data <- merge(
+  gene_map,
+  res_gsea,
+  by = "ENSEMBL"
+)
+  
+gsea_data <- gsea_data[
+  !duplicated(gsea_data$ENTREZID),
+]
+
+# Create ranked gene list
+
+gene_list <- gsea_data$stat
+
+names(gene_list) <- gsea_data$ENTREZID
+
+gene_list <- sort(
+  gene_list,
+  decreasing = TRUE
+)
+
+# Run KEGG GSEA
+
+gsea_result <- gseKEGG(
+  geneList = gene_list,
+  organism = "hsa",
+  pvalueCutoff = 0.05
+)
+
+
+
+head(as.data.frame(gsea_result))
+
+dotplot(
+  gsea_result,
+  showCategory = 20
+)
+
+
+
+
