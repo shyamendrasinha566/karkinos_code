@@ -1,6 +1,5 @@
 library(DESeq2)
 
-
 counts <- read.delim("https://www.ebi.ac.uk/gxa/experiments-content/E-GEOD-60052/resources/DifferentialSecondaryDataFiles.RnaSeq/raw-counts")
 
 head(counts)
@@ -18,11 +17,9 @@ head(metadata)
 # 
 # setdiff(metadata$sample_id, colnames(counts))
 
-
 # EXTRACT GENE IDS 
 
 gene_ids <- counts[,1]
-
 
 # Remove gene ID column
 
@@ -68,7 +65,6 @@ coldata$condition <- factor(
 colnames(metadata)
 
 table(coldata$condition)
-
 
 
 head(coldata)
@@ -193,6 +189,7 @@ EnhancedVolcano(
  
 
 # MA plot 
+
 par(mar = c(4, 4, 2, 1))
 plotMA(
   res,
@@ -234,7 +231,7 @@ sum(duplicated(gene_map$ENTREZID))
 
 gene_map <- gene_map[!duplicated(gene_map$ENSEMBL), ]
 
-############ RUN GO ENRICHMENT ######################### 
+############ RUN GO ENRICHMENT ##################
 
 ego <- enrichGO(
   gene = gene_map$ENTREZID,
@@ -257,8 +254,7 @@ dotplot(
 )
 
 
-
-########### KEGG PATHWAY ENRICHMENT #################
+########### KEGG PATHWAY ENRICHMENT #############
 
 kegg <- enrichKEGG(
   gene = gene_map$ENTREZID,
@@ -311,6 +307,7 @@ dim(merge_data)
 
 
 # Remove missing or non-finite statistics
+
 merge_data <- merge_data[
   !is.na(merge_data$stat) &
     is.finite(merge_data$stat),
@@ -321,7 +318,7 @@ merge_data <- merge_data[
   !duplicated(merge_data$ENTREZID),
 ]
 
-### create ranked list 
+# create ranked list 
 
 gene_list <- merge_data$stat
 
@@ -355,10 +352,7 @@ gseaplot2(
   title = "KEGG Enrichment"
 )
 
-
-
-
-############### REACTOME PATHWAY ENRICHMENT ################
+######### REACTOME PATHWAY ENRICHMENT #############
 
 BiocManager::install("ReactomePA")
 
