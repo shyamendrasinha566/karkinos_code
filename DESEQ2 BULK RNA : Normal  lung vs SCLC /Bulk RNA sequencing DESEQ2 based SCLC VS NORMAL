@@ -1,0 +1,387 @@
+library(DESeq2)
+
+
+counts <- read.delim("https://www.ebi.ac.uk/gxa/experiments-content/E-GEOD-60052/resources/DifferentialSecondaryDataFiles.RnaSeq/raw-counts")
+
+head(counts)
+
+metadata <- read.delim("https://www.ebi.ac.uk/gxa/experiments-content/E-GEOD-60052/resources/ExperimentDesignFile.RnaSeq/experiment-design")
+
+dim(counts)
+dim(metadata)
+
+
+colnames(metadata)
+head(metadata)
+
+# setdiff(colnames(counts), metadata$sample_id)
+# 
+# setdiff(metadata$sample_id, colnames(counts))
+
+
+# EXTRACT GENE IDS 
+
+gene_ids <- counts[,1]
+
+
+# Remove gene ID column
+
+count_matrix <- counts[, -1]
+
+# ASSIGN GENE IDS AS ROWNAMES 
+
+rownames(count_matrix) <- gene_ids
+
+count_matrix <- count_matrix[,-1]
+
+dim(count_matrix)
+
+head(count_matrix)
+
+# LIBRARY SIZE - SEQUENCNG DEPTH 
+
+library_size <- colSums(count_matrix)
+
+barplot(
+  library_size,
+  las = 2,
+  main = "Library Size Distribution",
+  ylab = "Total Read Counts",
+  col = "blue"
+)
+
+# Check disease groups
+
+table(metadata$Factor.Value.disease.)
+tbale(metadata$Run)
+
+#CREATE METADATA 
+
+coldata <- as.data.frame(metadata)
+
+rownames(coldata) <- coldata$Run
+
+coldata$condition <- factor(
+  metadata$Factor.Value.disease.
+)
+
+colnames(metadata)
+
+table(coldata$condition)
+
+
+
+head(coldata)
+
+coldata 
+
+# MATCH SAMPLE_ID 
+
+# check whether all samples match 
+
+all(colnames(count_matrix) %in% rownames(coldata))
+
+# FILTER LOW QAUILTY GENES 
+
+keep <- rowSums(count_matrix >= 10) >= 2
+
+count_filter <- count_matrix[keep, ,drop = FALSE]
+
+dim(count_filter)
+dim(count_matrix)
+colnames(count_matrix)
+rownames(coldata)
+
+
+# CREATE DESEQ2 OBJECT 
+
+dds <- DESeqDataSetFromMatrix(
+  countData = count_filter,
+  colData = coldata,
+  design = ~ condition
+)
+
+
+dds <- DESeq(dds)
+
+dds
+sizeFactors(dds)
+levels(dds$condition)
+
+res <- results(
+  dds,
+  contrast = c("condition", "normal", "small cell lung carcinoma"),
+  alpha = 0.05
+)
+
+summary(res)
+
+res
+
+resultsNames(dds)
+# FOR SIGNIFICANT GENES 
+
+res_df <- as.data.frame(res)
+
+# SIGNIFICANT GENES
+
+sig_genes <- res_df[
+  !is.na(res_df$padj) &
+    res_df$padj < 0.05,
+]
+
+sig_genes <- sig_genes[
+  order(sig_genes$padj),
+  ,
+  drop = FALSE
+]
+
+head(sig_genes)
+nrow(sig_genes)
+
+
+# UPREGULATED GENES
+
+upreg_genes <- subset(
+  sig_genes,
+  log2FoldChange > 1
+)
+
+# TOP 20 UPRGUELATED GENES 
+
+top_up <- upreg_genes[
+  order(upreg_genes$log2FoldChange),
+][1:20,]
+
+top_up
+
+# DOWNRGEULATED GENES 
+
+down_genes <- subset(
+  sig_genes,
+  log2FoldChange < -1
+)
+
+# TOP 20 DOWNRGEULATED GENES 
+
+top_down<- down_genes[
+  order(down_genes$log2FoldChange),
+] [1:20,]
+
+top_down
+
+nrow(upreg_genes)
+nrow(down_genes)
+
+# VOLCANO PLOT 
+
+BiocManager::install("EnhancedVolcano")
+
+library(EnhancedVolcano)
+
+EnhancedVolcano(
+  res_df,
+  lab = rownames(res_df),
+  x = "log2FoldChange",
+  y = "padj",
+  pCutoff = 0.05,
+  FCcutoff = 1,
+  title = "SCLC Tumor vs Normal",
+  subtitle = "Differential Gene Expression",
+  col = c("grey","blue","red","yellow")
+)
+ 
+
+# MA plot 
+par(mar = c(4, 4, 2, 1))
+plotMA(
+  res,
+  main = "MA Plot: SCLC Tumor vs Normal",
+  ylim = c(-5, 5),
+  alpha = 0.05
+)
+
+
+###### GO ENRICHMENT ANALYSIS ########
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+
+# CONVERT SYMBOLS TO ENTREZID
+
+ensembl_ids <- rownames(res)
+
+# Remove version numbers
+# ensembl_ids_clean <- sub(
+#   "\\..*$",
+#   "",
+#   ensembl_ids
+# )
+
+ensembl_ids <- unique(ensembl_ids)
+
+gene_map <- bitr(
+  ensembl_ids,
+  fromType = "ENSEMBL",
+  toType = "ENTREZID",
+  OrgDb = org.Hs.eg.db
+)
+
+length(unique(gene_map$ENTREZID))
+
+sum(duplicated(gene_map$ENTREZID))
+
+gene_map <- gene_map[!duplicated(gene_map$ENSEMBL), ]
+
+############ RUN GO ENRICHMENT ######################### 
+
+ego <- enrichGO(
+  gene = gene_map$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  keyType = "ENTREZID",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05,
+  qvalueCutoff = 0.05,
+  readable = TRUE
+)
+
+ego_df <- as.data.frame(ego)
+
+head(ego_df)
+
+dotplot(
+  ego,
+  showCategory = 20
+)
+
+
+
+########### KEGG PATHWAY ENRICHMENT #################
+
+kegg <- enrichKEGG(
+  gene = gene_map$ENTREZID,
+  organism = "hsa",
+  pvalueCutoff = 0.05
+)
+
+dotplot(
+  kegg,
+  showCategory = 20)
+
+
+######## GENE SET ENRICHMENT ANALYSIS ###############
+
+res_df <- res_df[
+  !is.na(res_df$stat),
+]
+
+gene_map$ENSEMBL <- rownames(res_df)
+
+head(gene_map)
+head(res_df)
+
+# ADD ENSEMBL COLUMN TO res_df 
+
+res_df$ENSEMBL <- sub(
+  "\\..*$",
+  "",
+  rownames(res_df)
+)
+gene_map1 <- bitr(
+  unique(res_df$ENSEMBL),
+  fromType = "ENSEMBL",
+  toType = "ENTREZID",
+  OrgDb = org.Hs.eg.db
+)
+
+merge_data <- merge(
+  res_df,
+  gene_map1,
+  by = "ENSEMBL"
+)
+
+
+res_df$ENSEMBL <- rownames(res_df)
+
+head(merge_data)
+
+dim(merge_data)
+
+
+# Remove missing or non-finite statistics
+merge_data <- merge_data[
+  !is.na(merge_data$stat) &
+    is.finite(merge_data$stat),
+]
+
+# Remove duplicate ENTREZ IDs
+merge_data <- merge_data[
+  !duplicated(merge_data$ENTREZID),
+]
+
+### create ranked list 
+
+gene_list <- merge_data$stat
+
+names(gene_list) <- merge_data$ENTREZID
+
+gene_list <- sort(gene_list, decreasing = TRUE)
+
+############# RUN KEGG GSEA ##############
+
+library(clusterProfiler)
+
+gsea_result <- gseKEGG(
+  geneList = gene_list,
+  organism = "hsa",
+  pvalueCutoff = 0.05
+)
+
+head(as.data.frame(gsea_result))
+
+# VISUALIZE 
+
+dotplot(
+  gsea_result,
+  showCategory = 20,
+  title = "GSEA KEGG"
+)
+
+gseaplot2(
+  gsea_result,
+  geneSetID = 1,
+  title = "KEGG Enrichment"
+)
+
+
+
+
+############### REACTOME PATHWAY ENRICHMENT ################
+
+BiocManager::install("ReactomePA")
+
+library(ReactomePA)
+
+reactome <- enrichPathway(
+  gene = unique(gene_map$ENTREZID),
+  organism = "human",
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  readable = TRUE
+)
+
+# Number of enriched pathways
+
+head(as.data.frame(reactome))
+
+# Visualize
+
+dotplot(
+  reactome,
+  showCategory = 20,
+  title = "Reactome Pathway Enrichment"
+)
+
+
