@@ -2,6 +2,7 @@
 library(maftools)
 library(TCGAbiolinks)
 
+
 # SEARCH FOR THE DATA 
 
 query <- GDCquery(
@@ -12,13 +13,10 @@ query <- GDCquery(
   access = "open"
 )
 
-
 # CHECK AVAILABLE FILES 
 
 getResults(query)
-
 dim(query)
-
 head(query)
 
 # DOWNLOAD GDC FILE 
@@ -200,37 +198,6 @@ hist(
 )
 
 dev.off()
-
-
-########## COPY NUMBER ANALYSIS #########3
-
-cnv_query <- GDCquery(
-  project = "TCGA-LAML",
-  data.category = "Copy Number Variation",
-  data.type = "Copy Number Segment",
-  access = "open"
-)
-
-getResults(cnv_query)
-
-cnv_results <- getResults(cnv_query)
-
-colnames(cnv_results)
-
-head(cnv_results)
-
-table(cnv_results$workflow_type)
-table(cnv_results$data_type)
-
-
-
-GDCdownload(
-  query = cnv_query,
-  method = "api",
-  directory = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS",
-  files.per.chunk = 10
-)
-
 
 
 
