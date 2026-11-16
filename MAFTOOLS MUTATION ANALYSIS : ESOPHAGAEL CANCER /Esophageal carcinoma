@@ -1,1 +1,213 @@
+library(maftools)
+library(TCGAbiolinks)
+
+# SEARCH THE FILE 
+
+query <- GDCquery(
+  project = "TCGA-ESCA",
+  data.category = "Simple Nucleotide Variation",
+  data.type = "Masked Somatic Mutation",
+  workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking",
+  access = "open"
+)
+
+getResults(query)
+dim(query)
+head(query)
+
+# DOWNLOAD THE FILE 
+
+GDCdownload(
+  query = query,
+  method = "api",
+  directory = "GDCdata"
+)
+
+# PREPARE GDC DATA 
+
+ESCA_data <- GDCprepare(
+  query = query,
+  directory = "GDCdata"
+)
+
+class(ESCA_data)
+dim(ESCA_data)
+
+
+# IMPORT INTO MAFTOOLS
+
+ESC_MAF <- read.maf(ESCA_data)
+
+ESC_MAF
+
+# SUMMARY-PLOT 
+
+png(
+  filename = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS/ESCA PLOTS/MAF_PLOTS.png",
+  width = 2500,
+  height = 3000,
+  res = 300
+)
+
+plotmafSummary(
+  maf = ESC_MAF,
+  rmOutlier = TRUE,
+  addStat = "median",
+  dashboard = TRUE
+)
+
+dev.off()
+
+
+# ONCOPLOT 
+
+dev.new()
+
+png(
+  filename = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS/ESCA PLOTS/ESC_ONCOPLOT.png",
+  width = 2500,
+  height = 3000,
+  res = 300
+)
+
+oncoplot(
+  maf = ESC_MAF,
+  top = 30
+)
+
+dev.off()
+
+# TRANSITION / TRANSVERSION MUTATION 
+
+png(
+  filename = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS/ESCA PLOTS/TITV_PLOTS.png",
+  width = 2500,
+  height = 3000,
+  res = 300
+)
+
+TITV_PLOT <- titv(
+  maf = ESC_MAF,
+  plot = TRUE,
+  useSyn = TRUE
+  )
+
+dev.off()
+
+
+# TUMOR MUTATIONAL BURDEN (TMB)
+
+tmb_results <- tmb(
+  maf = ESC_MAF,
+  captureSize = 50
+)
+
+summary(tmb_results)
+
+head(tmb_results)
+
+
+# SOMATIC-INTERACTIONS 
+
+png(
+  filename = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS/ESCA PLOTS/SOMATIC_INTERACTIONS_ESC.png",
+  width = 2500,
+  height = 3000,
+  res = 300
+)
+
+somaticInteractions(
+  maf = ESC_MAF,
+  top = 30,
+  pvalue = c(0.05, 1)
+)
+
+dev.off()
+
+
+# COUNT-MUTATION 
+
+table(ESC_MAF@data$Variant_Classification)
+
+# GENE WISE SUMMARY ANALYSIS 
+
+gene_summary <- getGeneSummary(ESC_MAF)
+
+gene_summary
+
+# LOLLIPOPLOT 
+
+png(
+  filename = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS/ESCA PLOTS/LOLLIPOPLOT_ESC.png",
+  width = 2500,
+  height = 3000,
+  res = 300
+)
+
+lollipopPlot(
+  maf = ESC_MAF,
+  gene = "TTN",
+  AACol = "HGVSp_Short",
+  labelPos = "all"
+)
+
+title(
+  main = "TTN MUTATION PROFILE IN ESCA",
+  cex.main = 1.2,
+  font.main = 2
+)
+
+dev.off()
+
+
+# VARIANT ALLELE FREQUENCY (VAF)
+
+ESC_VAF <- ESC_MAF[
+  !is.na(ESC_MAF@data$t_alt_count) &
+    !is.na(ESC_MAF@data$t_ref_count) &
+    (ESC_MAF@data$t_alt_count + ESC_MAF@data$t_ref_count) > 0,
+]
+
+ESC_VAF$vaf <- with(
+  ESC_MAF,
+  t_alt_count / (t_alt_count + t_ref_count)
+)
+
+# INTO PERCENTAGE 
+
+ESC_VAF$vaf_percent <- ESC_VAF$vaf * 100
+
+summary(ESC_VAF$vaf)
+
+dev.new()
+
+
+# ONCOGENIC PATHWAY ANLSYSIS 
+
+png(
+  filename = "C:/Users/Shyamendra Sinha/Desktop/R programming files/R FILES/AML MAFTOOLS ANALYSIS/ESCA PLOTS/PATHWAYS_ESC.png",
+  width = 2500,
+  height = 3000,
+  res = 300
+)
+
+
+ESC_PATHWAYS <- pathways(
+  maf = ESC_MAF,
+  plotType = "bar"
+)
+
+plotPathways(
+  maf = ESC_MAF,
+  pathlist = ESC_PATHWAYS
+)
+
+dev.off()
+
+
+
+
+
+
+
 
