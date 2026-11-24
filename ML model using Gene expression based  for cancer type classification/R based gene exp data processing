@@ -1,1 +1,445 @@
 
+
+library(data.table)
+library(dplyr)
+
+# TCGA-HCC (Hepatocellular Carcinoma)
+HCC_DATA <- fread(
+  "C:/Users/Shyamendra Sinha/Downloads/HCC_GENE_MATTRIX/HiSeqV2",
+  header = TRUE,
+  check.names = FALSE
+)
+
+#TCGA-PAAD (Pancreatic Adenocarcinoma)
+PAAD_DATA <- fread(
+  "C:/Users/Shyamendra Sinha/Downloads/PAAD_GENE_MATRIX/HiSeqV2",
+  header = TRUE,
+  check.names = FALSE
+)
+
+dim(HCC_DATA)
+dim(PAAD_DATA)
+
+head(HCC_DATA[, 1:6])
+head(PAAD_DATA[, 1:6])
+
+# CHANGE COLUMN NAME
+
+setnames(HCC_DATA, 1, "Gene")
+setnames(PAAD_DATA, 1, "Gene")
+
+head(HCC_DATA$Gene)
+head(PAAD_DATA$Gene)
+
+# CANCER TYPE LABELS 
+
+HCC_DATA$CancerType <- "HCC"
+PAAD_DATA$CancerType <- "PAAD"
+
+# HCC primary tumour samples
+
+HCC_SAMPLE_COLUMNS <- colnames(HCC_DATA)[
+  substr(colnames(HCC_DATA), 14, 15) == "01"
+]
+
+HCC_DATA <- HCC_DATA[
+  ,
+  c("Gene", HCC_SAMPLE_COLUMNS, "CancerType"),
+  with = FALSE
+]
+
+# PAAD primary tumour samples
+
+PAAD_SAMPLE_COLUMNS <- colnames(PAAD_DATA)[
+  substr(colnames(PAAD_DATA), 14, 15) == "01"
+]
+
+PAAD_DATA <- PAAD_DATA[
+  ,
+  c("Gene", PAAD_SAMPLE_COLUMNS, "CancerType"),
+  with = FALSE
+]
+
+# EXTRACT GENE NAMES 
+
+HCC_GENES <- HCC_DATA$Gene
+PAAD_GENES <- PAAD_DATA$Gene
+
+# IDENTIFY COMMON GENES 
+
+COMMON_GENES <- intersect(
+  HCC_GENES,
+  PAAD_GENES
+)
+
+length(COMMON_GENES)
+head(COMMON_GENES)
+
+# COMMON GENES AND METADATA 
+
+HCC_COMMON <- HCC_DATA[
+  Gene %in% COMMON_GENES
+]
+
+PAAD_COMMON <- PAAD_DATA[
+  Gene %in% COMMON_GENES
+]
+
+HCC_COMMON <- HCC_COMMON[
+  match(COMMON_GENES, Gene)
+]
+
+PAAD_COMMON <- PAAD_COMMON[
+  match(COMMON_GENES, Gene)
+]
+
+# Remove Gene and CancerType columns
+
+HCC_EXPRESSION <- HCC_COMMON[
+  ,
+  !c("Gene", "CancerType"),
+  with = FALSE
+]
+
+PAAD_EXPRESSION <- PAAD_COMMON[
+  ,
+  !c("Gene", "CancerType"),
+  with = FALSE
+]
+
+# Convert expression values to numeric
+
+HCC_EXPRESSION <- as.matrix(
+  data.frame(lapply(HCC_EXPRESSION, as.numeric))
+)
+
+PAAD_EXPRESSION <- as.matrix(
+  data.frame(lapply(PAAD_EXPRESSION, as.numeric))
+)
+
+
+# TRANSPOSE EXPRESSION MATRICES
+
+HCC_EXPRESSION <- t(HCC_EXPRESSION)
+PAAD_EXPRESSION <- t(PAAD_EXPRESSION)
+
+
+# ASSIGN GENE NAMES AS COLUMN NAMES 
+
+colnames(HCC_EXPRESSION) <- COMMON_GENES
+colnames(PAAD_EXPRESSION) <- COMMON_GENES
+
+# COMBINE HCC AND PAAD
+
+COMBINED_EXPRESSION <- rbind(HCC_EXPRESSION,PAAD_EXPRESSION)
+
+
+# CREATE SAMPLE METADATA
+
+SAMPLE_METADATA <- data.frame(
+  Sample_ID = rownames(COMBINED_EXPRESSION),
+  CancerType = c(
+    rep("HCC", nrow(HCC_EXPRESSION)),
+    rep("PAAD", nrow(PAAD_EXPRESSION))
+  )
+)
+
+rownames(SAMPLE_METADATA) <- SAMPLE_METADATA$Sample_ID
+
+# FINAL EXPRESSION MATRIX
+
+EXPRESSION_MATRIX <- COMBINED_EXPRESSION
+
+dim(EXPRESSION_MATRIX)
+
+sum(is.na(EXPRESSION_MATRIX))
+
+
+# FILTER LOW QUALITY GENES 
+
+keep <- rowSums(EXPRESSION_MATRIX >=10 ) >=10
+
+count_filtered <- EXPRESSION_MATRIX[keep,]
+
+dim(EXPRESSION_MATRIX)
+dim(count_filtered)
+
+
+################################
+
+# FOR TRAIN/TEST SPLIT 
+
+install.packages("caret")
+library(caret)
+
+set.seed(123)
+
+
+TRAIN_INDEX <- createDataPartition(
+  SAMPLE_METADATA$CancerType,
+  p = 0.80,
+  list = FALSE
+)
+
+# Training data
+
+TRAIN_EXPRESSION <- EXPRESSION_MATRIX[
+  TRAIN_INDEX,
+  ,
+  drop = FALSE
+]
+
+
+TRAIN_METADATA <- SAMPLE_METADATA[
+  TRAIN_INDEX,
+  ,
+  drop = FALSE
+]
+
+TRAIN_EXPRESSION <- t(TRAIN_EXPRESSION)
+
+# Testing data
+
+TEST_EXPRESSION <- EXPRESSION_MATRIX[
+  -TRAIN_INDEX,
+  ,
+  drop = FALSE
+]
+
+TEST_METADATA <- SAMPLE_METADATA[
+  -TRAIN_INDEX,
+  ,
+  drop = FALSE
+]
+
+
+
+dim(TRAIN_EXPRESSION)
+dim(TEST_EXPRESSION)
+
+# Cancer distribution
+
+table(TRAIN_METADATA$CancerType)
+table(TEST_METADATA$CancerType)
+
+# Check sample IDs
+
+intersect(
+  rownames(TRAIN_EXPRESSION),
+  rownames(TEST_EXPRESSION)
+)
+
+##################################
+# LIMMA FOR DIFFERENTIAL EXPRESSION 
+
+# Set reference level
+
+library(limma)
+library(dplyr)
+
+TRAIN_METADATA$CancerType <- factor(
+  TRAIN_METADATA$CancerType,
+  levels = c("HCC", "PAAD")
+)
+table(TRAIN_METADATA$CancerType)
+
+
+# DESIGN MATRIX 
+
+DESIGN <- model.matrix(
+  ~ 0 + CancerType,
+  data = TRAIN_METADATA
+)
+
+
+colnames(DESIGN) <- c("HCC", "PAAD")
+
+
+dim(DESIGN)
+
+# LIMMA 
+
+FIT <- lmFit(
+  TRAIN_EXPRESSION,
+  DESIGN
+)
+
+# Inspect fitted model
+FIT
+
+CONTRAST <- makeContrasts(
+  PAAD_vs_HCC = PAAD - HCC,
+  levels = DESIGN
+)
+
+CONTRAST
+
+FIT2 <- contrasts.fit(
+  FIT,
+  CONTRAST
+)
+
+FIT2 <- eBayes(FIT2)
+
+FIT2
+
+# EXTRACT EMPERICAL 
+
+DEG_RESULTS <- topTable(
+  FIT2,
+  coef = "PAAD_vs_HCC",
+  number = Inf,
+  adjust.method = "BH",
+  sort.by = "P"
+)
+
+
+
+head(DEG_RESULTS)
+dim(DEG_RESULTS)
+
+DEG_RESULTS$Gene <- rownames(DEG_RESULTS)
+DEG_RESULTS$GENE <- NULL
+rownames(DEG_RESULTS) <- NULL
+
+# Keep Gene as the first column
+
+DEG_RESULTS <- DEG_RESULTS[
+  ,
+  c("Gene", "logFC", "AveExpr", "t",
+    "P.Value", "adj.P.Val", "B")
+]
+
+head(DEG_RESULTS)
+
+# SIGNIFICANT GENES 
+
+DEG_SIGNIFICANT <- DEG_RESULTS %>%
+  filter(
+    adj.P.Val < 0.05,
+    abs(logFC) > 1
+  )
+
+dim(DEG_SIGNIFICANT)
+head(DEG_SIGNIFICANT)
+
+UPREGULATED <- DEG_SIGNIFICANT %>%
+  filter(logFC > 1)
+
+DOWNREGULATED <- DEG_SIGNIFICANT %>%
+  filter(logFC < -1)
+
+nrow(UPREGULATED)
+nrow(DOWNREGULATED)
+
+
+# EXTRACT DEG GENE LIST 
+
+deg_list <- DEG_SIGNIFICANT$Gene
+
+head(deg_list)
+length(deg_list)
+
+# Training-derived DEG list to all samples
+
+count_deg <- EXPRESSION_MATRIX[
+  ,
+  colnames(EXPRESSION_MATRIX) %in% deg_list,
+  drop = FALSE
+]
+
+dim(count_deg)
+
+# RETAIN EXPRESSIONS 
+ml_expression <- count_deg
+
+dim(ml_expression)
+
+# convert Samples X Gene 
+
+ml_matrix <- ml_expression
+
+dim(ml_matrix)
+
+ml_df <- as.data.frame(ml_matrix)
+
+# add ROWNAMES 
+
+ml_df$Sample_ID <- rownames(ml_df)
+
+# ADD TARGET LABELS 
+
+ml_df$Target <- SAMPLE_METADATA[
+  ml_df$Sample_ID,
+  "CancerType"
+]
+
+table(ml_df$Target)
+
+
+# ADD DATASET LABEL 
+
+ml_df$Dataset <- ifelse(
+  ml_df$Sample_ID %in%
+    rownames(TRAIN_METADATA),
+  "Train",
+  "Test"
+)
+
+table(
+  ml_df$Dataset,
+  ml_df$Target
+)
+
+# REORDER 
+
+ml_df <- ml_df[
+  ,
+  c(
+    "Sample_ID",
+    "Dataset",
+    "Target",
+    setdiff(
+      colnames(ml_df),
+      c(
+        "Sample_ID",
+        "Dataset",
+        "Target"
+      )
+    )
+  )
+]
+
+
+
+# FINAL DATASET CHECK 
+
+table(ml_df$Dataset)
+table(ml_df$Target)
+sum(is.na(ml_df))
+
+# SAVE ML FILE
+
+write.csv(
+  ml_df,
+  "C:/Users/Shyamendra Sinha/Desktop/R programming files/R PROGRAM/R OUTPUT FILES/ml_df.csv",
+  row.names = FALSE
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
