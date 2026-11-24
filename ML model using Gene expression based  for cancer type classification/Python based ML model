@@ -232,9 +232,6 @@ shap_importance = shap_importance.sort_values(
     ascending=False
 )
 
-
-print("\nTOP 20 SHAP IMPORTANT GENES")
-
 print(shap_importance.head(20))
 
 # SHAP BEESWARM PLOT 
@@ -247,7 +244,6 @@ shap.summary_plot(
 )
 
 plt.title("SHAP Beeswarm - HCC vs PAAD")
-
 plt.savefig(
     "SHAP_Beeswarm_Plot.png",
     dpi=300,
