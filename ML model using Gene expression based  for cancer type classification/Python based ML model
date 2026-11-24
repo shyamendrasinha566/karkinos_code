@@ -1,1 +1,265 @@
 
+
+import pandas as pd
+import numpy as np 
+import matplotlib.pyplot as plt
+
+import sklearn
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score,f1_score,recall_score,confusion_matrix,precision_score,roc_auc_score,roc_curve
+
+from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb 
+
+from sklearn.preprocessing import LabelEncoder
+
+ml_df = pd.read_csv(
+    r"C:\Users\Shyamendra Sinha\Desktop\R programming files\R PROGRAM\R OUTPUT FILES\ml_df.csv"
+)
+
+print(ml_df.head())
+print(ml_df.shape)
+print(pd.crosstab(ml_df["Dataset"], ml_df["Target"]))
+
+# separate metadata and gene exp features 
+
+metadata_col = ["Sample_ID","Dataset","Target"]
+
+features_col = [
+    col for col in ml_df.columns
+    if col not in metadata_col
+]
+
+# SEPARATE METADATA AND FEATURE COLUMNS
+
+metadata = ml_df[metadata_col]
+
+print("No. of gene features:", len(features_col))
+
+
+
+label_encoder = LabelEncoder()
+
+y = label_encoder.fit_transform(ml_df["Target"])
+
+print("Original classes:", label_encoder.classes_)
+
+# DEFINE POSITIVE CLASS ONCE
+
+POS_LABEL = label_encoder.transform(["HCC"])[0]
+
+# Define confusion matrix order
+
+CLASS_LABELS = label_encoder.transform(["HCC", "PAAD"])
+
+print("Positive class (HCC):", POS_LABEL)
+print("Class labels:", CLASS_LABELS)
+
+
+# SET FEATURES
+X = ml_df[features_col]
+
+# SET TARGET
+y = ml_df["Target"]
+
+print("Features shape:", X.shape)
+print("Target shape:", y.shape)
+
+
+# Separate training and testing data
+
+TRAIN_DATA = ml_df[ml_df["Dataset"] == "Train"].copy()
+
+TEST_DATA = ml_df[ml_df["Dataset"] == "Test"].copy()
+
+
+print("Training dataset:", TRAIN_DATA.shape)
+print("Testing dataset:", TEST_DATA.shape)
+
+# Separate features and target
+
+X_train = TRAIN_DATA[features_col]
+y_train = TRAIN_DATA["Target"]
+
+X_test = TEST_DATA[features_col]
+y_test = TEST_DATA["Target"]
+
+# LABEL ENCODING
+
+y_train = label_encoder.transform(TRAIN_DATA["Target"])
+
+y_test = label_encoder.transform(TEST_DATA["Target"])
+
+# CHECK FOR MISSING VALUES 
+
+print("MISSING TRAIN VALUES", X_train.isnull().sum().sum())
+print("MISSING TEST VALUES", X_test.isnull().sum().sum())
+
+# LOGISTIC REGRESSION 
+
+lr = LogisticRegression()
+lr.fit(X_train,y_train)
+
+y_pred_lr = lr.predict(X_test)
+
+Accuracy_lr = accuracy_score(y_test, y_pred_lr)
+
+precision_lr = precision_score(
+    y_test, y_pred_lr,
+    pos_label=POS_LABEL
+)
+
+recall_lr = recall_score(
+    y_test, y_pred_lr,
+    pos_label=POS_LABEL
+)
+
+f1_lr = f1_score(
+    y_test, y_pred_lr,
+    pos_label=POS_LABEL
+)
+
+cm_lr = confusion_matrix(
+    y_test, y_pred_lr,
+    labels=CLASS_LABELS
+)
+
+print("LOGISTIC REGRESSION")
+
+print(f"Accuracy : {Accuracy_lr * 100:.1f}%")
+print(f"Precision: {precision_lr:.4f}")
+print(f"Recall   : {recall_lr:.4f}")
+print(f"F1-Score : {f1_lr:.4f}")
+
+print("Confusion Matrix:")
+print(cm_lr)
+
+
+# XGBOOST 
+
+xgb_model = xgb.XGBClassifier(n_estimators = 100, learning_rate = 0.1, max_depth = 3, random_state = 42, n_jobs = 1)
+
+xgb_model.fit(X_train,y_train)
+
+y_pred_xgb = xgb_model.predict(X_test)
+
+
+accuracy_xgb = accuracy_score(y_test,y_pred_xgb)
+
+precision_xgb = precision_score(
+    y_test, y_pred_xgb,
+    pos_label=POS_LABEL
+)
+
+recall_xgb = recall_score(
+    y_test, y_pred_xgb,
+    pos_label=POS_LABEL
+)
+
+f1_xgb = f1_score(
+    y_test, y_pred_xgb,
+    pos_label=POS_LABEL
+)
+
+cm_xgb = confusion_matrix(
+    y_test, y_pred_xgb,
+    labels=CLASS_LABELS
+)
+
+
+print("XGBOOST")
+
+print(f"Accuracy : {accuracy_xgb * 100:.1f}%")
+print(f"Precision: {precision_xgb:.4f}")
+print(f"Recall   : {recall_xgb:.4f}")
+print(f"F1-Score : {f1_xgb:.4f}")
+
+
+#########################################
+
+
+# ROC-AUC 
+
+y_prob_lr = lr.predict_proba(X_test)[:, 1]
+
+y_prob_xgb = xgb_model.predict_proba(X_test)[:, 1]
+
+auc_lr = roc_auc_score(y_test,y_prob_lr)
+
+auc_xgb = roc_auc_score(y_test,y_prob_xgb)
+
+
+print("Logistic Regression AUC:", auc_lr)
+
+print("XGBoost AUC:", auc_xgb)
+
+
+#############################################
+
+# SHAP ANALYSIS 
+
+import shap
+
+explainer = shap.TreeExplainer(xgb_model)
+
+shap_exp = explainer(X_test)
+
+shap_values = shap_exp.values
+
+if shap_values.ndim == 3:
+    shap_values = shap_values[:, :, 1]
+
+
+print("SHAP VALUES SHAPE:", shap_values.shape)
+
+
+
+shap_importance = pd.DataFrame({
+
+    "Gene": X_test.columns,
+
+    "Mean_SHAP": np.abs(shap_values).mean(axis=0),
+
+    "Mean_Directional_SHAP": shap_values.mean(axis=0)
+
+})
+
+
+# Sort genes based on SHAP importance
+shap_importance = shap_importance.sort_values(
+    by="Mean_SHAP",
+    ascending=False
+)
+
+
+print("\nTOP 20 SHAP IMPORTANT GENES")
+
+print(shap_importance.head(20))
+
+# SHAP BEESWARM PLOT 
+
+shap.summary_plot(
+    shap_values,
+    X_test,
+    max_display = 20,
+    show = False
+)
+
+plt.title("SHAP Beeswarm - HCC vs PAAD")
+
+plt.savefig(
+    "SHAP_Beeswarm_Plot.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+
+
+
+
+
+
+
