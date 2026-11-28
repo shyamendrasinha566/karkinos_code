@@ -1,1 +1,380 @@
 
+
+####################################################################
+
+# ML MODEL FOR UTERINE CANCER TYPE PREDICTION BASED ON GENE EXP DATA 
+# Data download and pre-processing
+
+library(TCGAbiolinks)
+library(SummarizedExperiment)
+
+
+# UTERINE CARCINOSARCOMA (UCS)
+
+query_UCS <- GDCquery(
+  project = "TCGA-UCS",
+  data.category = "Transcriptome Profiling",
+  data.type = "Gene Expression Quantification",
+  workflow.type = "STAR - Counts"
+)
+
+GDCdownload(query_UCS)
+
+UCS_RAW <- GDCprepare(query_UCS)
+
+UCS_RAW
+dim(UCS_RAW)
+	
+# Uterine Corpus Endometrial Carcinoma (UCEC)
+
+query_UE <- GDCquery(
+  project = "TCGA-UCEC",
+  data.category = "Transcriptome Profiling",
+  data.type = "Gene Expression Quantification",
+  workflow.type = "STAR - Counts"
+)
+
+GDCdownload(
+  query = query_UE,
+  method = "api",
+  directory = "GDCdata",
+  files.per.chunk = 5
+)
+
+UE_RAW <- GDCprepare(
+  query = query_UE,
+  save = TRUE,
+  save.filename = "UCEC_STAR_COUNTS.RData",
+  directory = "GDCdata"
+)
+
+UE_RAW
+
+dim(UE_RAW)
+
+# EXTRACT THE ASSAY 
+# ASSAY CONTAINS GENE EXPRESSION COUNTS 
+
+UCS_MATRIX <- assay(UCS_RAW)
+UE_MATRIX <- assay(UE_RAW)
+
+UCS_MATRIX
+UE_MATRIX 
+
+colnames(UCS_MATRIX)
+colnames(UE_MATRIX)
+
+# MATRIX INTO DATAFRAME 
+
+UCS_DATA <- as.data.frame(UCS_MATRIX)
+UE_DATA <- as.data.frame(UE_MATRIX)
+
+# ASSIGN CANCER TYPE 
+
+UCS_DATA$CancerType <- "UCS"
+UE_DATA$CancerType <- "UE"
+
+# ASSIGN FIRST COLUMN NAME AS GENE 
+
+UCS_DATA$Gene <- rownames(UCS_DATA)
+UE_DATA$Gene  <- rownames(UE_DATA)
+
+# UCS PRIMARY TUMOUR SAMPLES (14,15 COLUMNS CONTAINS PRIMARY TUMOR SAMPLES)
+
+UCS_DATA_COLUMNS <- colnames(UCS_DATA)[
+  substr(colnames(UCS_DATA),14,15) == "01"
+]
+
+UCS_DATA <- UCS_DATA[
+  ,
+  c("Gene", UCS_DATA_COLUMNS, "CancerType"),
+  drop = FALSE
+]
+
+head(UCS_DATA)
+
+# UE PRIMARY TUMOR SAMPLES 
+
+UE_DATA_COLUMNS <- colnames(UE_DATA) [
+  substr(colnames(UE_DATA),14,15) == "01"
+]
+
+UE_DATA <- UE_DATA[
+  ,
+  c("Gene", UE_DATA_COLUMNS, "CancerType"),
+  drop = FALSE
+]
+
+head(UE_DATA)
+"Gene" %in% colnames(UCS_DATA)
+"Gene" %in% colnames(UE_DATA)
+
+# EXTRACT GENES 
+
+UCS_GENES <- UCS_DATA$Gene
+UE_GENES <- UE_DATA$Gene
+
+# IDENTIFY GENES PRESENT IN BOTH 
+
+COMMON_GENES <- intersect(
+  UCS_GENES,
+  UE_GENES
+)
+
+length(COMMON_GENES)
+
+# UCS AND US COMMON GENES
+
+UCS_COMMON <- UCS_DATA[
+  UCS_DATA$Gene %in% COMMON_GENES,
+  ,
+  drop = FALSE
+]
+
+UE_COMMON <- UE_DATA[
+  UE_DATA$Gene %in% COMMON_GENES,
+  ,
+  drop = FALSE
+]
+
+# EXPRESSION MATRIX 
+
+UCS_EXPRESSION <- UCS_COMMON[
+  ,
+  !colnames(UCS_COMMON) %in% c("Gene", "CancerType"),
+  drop = FALSE
+]
+
+UE_EXPRESSION <- UE_COMMON[
+  ,
+  !colnames(UE_COMMON) %in% c("Gene", "CancerType"),
+  drop = FALSE
+]
+
+dim(UCS_EXPRESSION)
+dim(UE_EXPRESSION)
+
+# TRANSPOSE MATRIX EXP - SAMPLES X GENES 
+
+UCS_EXPRESSION <- t(UCS_EXPRESSION)
+UE_EXPRESSION <- t(UE_EXPRESSION)
+
+
+# GENE NAMES AS COLNAMES 
+
+colnames(UCS_EXPRESSION) <- COMMON_GENES
+colnames(UE_EXPRESSION) <- COMMON_GENES
+
+COMBINED_EXPRESSION <- rbind(
+  UCS_EXPRESSION,
+  UE_EXPRESSION
+)
+
+# SAMPLE_METADATA 
+
+SAMPLE_METADATA <- data.frame(
+  sample_ID = rownames(COMBINED_EXPRESSION),
+  CancerType = c(
+    rep("UCS", nrow(UCS_EXPRESSION)),
+    rep("UE", nrow(UE_EXPRESSION))
+  )
+)
+
+rownames(SAMPLE_METADATA) <- SAMPLE_METADATA$sample_ID
+
+
+# FINAL EXPRESSION MATERIX 
+
+EXPRESSION_MATRIX <- t(COMBINED_EXPRESSION)
+
+
+dim(EXPRESSION_MATRIX)
+sum(is.na(EXPRESSION_MATRIX))
+
+# FILTER LOW QUALITY GENES 
+
+keep <- rowSums(EXPRESSION_MATRIX >= 10) >= 2
+
+count_filtered <- EXPRESSION_MATRIX[keep,]
+
+dim(EXPRESSION_MATRIX)
+dim(count_filtered)
+dim(SAMPLE_METADATA)
+
+####################################
+
+# FOR TRAIN/TEST DATA 
+
+# LIMMA 
+
+library(limma)
+library(dplyr)
+
+
+SAMPLE_METADATA$CancerType <- factor(
+  SAMPLE_METADATA$CancerType,
+  levels= c("UCS","UE")
+)
+
+table(SAMPLE_METADATA$CancerType)
+
+# DESIGN MATRIX 
+
+DESIGN <- model.matrix(
+  ~ 0 + CancerType,
+  data = SAMPLE_METADATA
+)
+
+colnames(DESIGN) <- c("UCS","UE")
+
+dim(DESIGN)
+dim(count_filtered)
+
+# CHECK SAMPLE MATCHING
+
+all(colnames(count_filtered) == rownames(SAMPLE_METADATA))
+
+# LIMMA 
+
+FIT <- lmFit(
+  count_filtered,
+  DESIGN
+)
+
+FIT
+
+CONTRAST <- makeContrasts(
+  UCS_VS_UE = UCS-UE,
+  levels = DESIGN
+)
+
+FIT2 <- contrasts.fit(
+  FIT,
+  CONTRAST
+)
+
+
+FIT2 <- eBayes(FIT2)
+
+FIT2
+
+# DEG
+
+DEG_RESULTS <- topTable(
+  FIT2,
+  coef = "UCS_VS_UE",
+  number = Inf,
+  adjust.method = "BH",
+  sort.by = "P"
+)
+
+
+
+DEG_RESULTS$Gene <- rownames(DEG_RESULTS)
+
+
+DEG_RESULTS <- DEG_RESULTS[
+  ,
+  c("Gene", "logFC", "AveExpr", "t",
+    "P.Value", "adj.P.Val", "B")
+]
+
+head(DEG_RESULTS)
+
+
+# SIGNIFICANT GENES 
+
+SIGNIFICANT_GENES <- DEG_RESULTS %>%
+  filter(
+    adj.P.Val <0.05,
+    abs(logFC) >1
+  )
+
+dim(SIGNIFICANT_GENES)
+
+Upregulated_genes <- SIGNIFICANT_GENES %>%
+  filter(logFC >1)
+
+downregulated_genes <- SIGNIFICANT_GENES %>%
+  filter(logFC < -1)
+
+
+dim(Upregulated_genes)
+dim(downregulated_genes)
+
+
+deg_list <- SIGNIFICANT_GENES$Gene
+
+head(deg_list)
+length(deg_list)
+
+
+# RETAIN EXP DATA 
+
+count_deg <- EXPRESSION_MATRIX[
+  rownames(EXPRESSION_MATRIX) %in% deg_list,
+  ,
+  drop = FALSE
+]
+
+dim(count_deg)
+
+# TRANSPOSE MATRIX 
+
+count_deg <- t(count_deg)
+
+dim(count_deg)
+
+
+# CONVERT SAMPLES X GENES 
+
+ml_df <- as.data.frame(count_deg)
+ml_df$Sample_ID <- rownames(ml_df)
+
+head(ml_df)
+
+# TARGET LABELS 
+
+ml_df$Target <- SAMPLE_METADATA[
+  ml_df$Sample_ID,
+  "CancerType"
+]
+
+
+table(ml_df$Target)
+head(ml_df)
+colnames(ml_df)
+rownames(ml_df)
+
+# FINAL DATASET CHECK 
+
+table(ml_df$Target)
+sum(is.na(ml_df))
+dim(ml_df)
+head(ml_df)
+
+
+# save the ml file 
+
+
+write.csv(
+  ml_df,
+  "C:/Users/Shyamendra Sinha/Desktop/R programming files/R PROGRAM/R OUTPUT FILES/ml_geneexp_model_file.csv",
+  row.names = FALSE
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
